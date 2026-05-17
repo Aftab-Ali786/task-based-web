@@ -1,94 +1,134 @@
-# 💰 Personal Finance Tracker (React + Vite + MERN)
+Team Task Manager
 
-A simple yet powerful **personal finance tracking** web app built using the **MERN stack** (MongoDB, Express, React, Node.js) with Vite for the frontend.
+A full-stack Team Task Manager web application where users can create projects, assign tasks, manage teams, and track project progress with role-based authentication.
 
----
+🚀 Live Demo
 
-## ✨ Features
+Frontend: Add your deployed frontend URL here
+Backend API: Add your Railway backend URL here
 
-- ✅ Track **income** and **expenses**
-- ✅ View **total balance, income, and expenses**
-- ✅ Interactive **charts and graphs** for insights  
-  - Doughnut, Pie, and Line charts  
-- ✅ **Month-wise transaction history**  
-- ✅ View **current month transactions** below charts  
-- ✅ **Add, edit, and delete transactions**
-
----
-
-## ⚙️ Installation & Setup
-
-### 1. Clone the repository
-```bash
-git clone <your-repo-link>
-cd finance-tracking
-
-
+📌 Features
+🔐 Authentication
+User Registration
+User Login
+JWT Authentication
+Protected Routes
+👥 Role-Based Access
+Admin
+Create Projects
+Manage Team
+Assign Tasks
+View All Users
+Member
+View Assigned Tasks
+Update Task Status
+📁 Project Management
+Create Projects
+Add Team Members
+View All Projects
+Project-wise Task Tracking
+✅ Task Management
+Create Tasks
+Assign Tasks to Users
+Edit Tasks
+Delete Tasks
+Task Priority
+Task Status Tracking
+📊 Dashboard
+Total Tasks
+Completed Tasks
+Pending Tasks
+Overdue Tasks
+Total Projects
+🛠️ Tech Stack
+Frontend
+React.js
+React Router DOM
+Tailwind CSS
+Lucide React
+Backend
+Node.js
+Express.js
+MongoDB
+Mongoose
+JWT Authentication
+bcryptjs
+Deployment
+Railway (Backend)
+Vercel / Netlify (Frontend)
+📂 Project Structure
+project-root/
+│
+├── backend/
+│   ├── server.js
+│   ├── package.json
+│   └── .env
+│
+├── frontend/
+│   ├── src/
+│   ├── public/
+│   └── package.json
+⚙️ Installation
+1️⃣ Clone Repository
+git clone https://github.com/your-username/team-task-manager.git
+2️⃣ Backend Setup
 cd backend
 npm install
-node server.js
-⚠️ Make sure you have MongoDB installed and running locally.
-Use MongoDB Compass to view and manage your data.
-
-
-
+Create .env
+MONGO_URI=your_mongodb_connection
+JWT_SECRET=your_secret_key
+PORT=5000
+Run Backend
+cd Backend and node server.js
+3️⃣ Frontend Setup
 cd frontend
 npm install
 npm run dev
+🌐 API Routes
+Auth Routes
+Method	Route	Description
+POST	/api/auth/register	Register User
+POST	/api/auth/login	Login User
+User Routes
+Method	Route	Description
+GET	/api/users	Get All Users
+Project Routes
+Method	Route	Description
+POST	/api/projects	Create Project
+GET	/api/projects	Get Projects
+Task Routes
+Method	Route	Description
+POST	/api/tasks	Create Task
+GET	/api/tasks	Get Tasks
+PUT	/api/tasks/:id	Update Task
+DELETE	/api/tasks/:id	Delete Task
+🔒 Authentication
 
+Protected APIs require JWT token in headers:
 
+Authorization: your_token
+🚀 Deployment
+Backend Deployment (Railway)
+Steps
+Push code to GitHub
+Create Railway Project
 
-📝 Usage Guide
+Set Root Directory:
 
-Click “Add Transaction” to create a new transaction.
+backend
+Add Environment Variables
+Deploy
+Frontend Deployment (Vercel/Netlify)
 
-Fill in all required fields:
+Update API URLs:
 
-Title
+https://your-backend-url.up.railway.app/api
 
-Amount
+Deploy frontend.
 
-Date
+📸 Screenshots
 
-Category
+Add screenshots of:
 
-Type (Income / Expense)
-
-Editing Transactions:
-
-If changing from Income → Expense, add a - (minus) sign before the amount.
-
-If changing from Expense → Income, remove the - sign.
-
-Other fields (title, category, date) can be updated normally.
-
-📊 Example Features in Action
-
-Dashboard: Shows income vs. expenses in charts
-
-Transactions List: View month-wise and current month’s records
-
-Charts:
-
-Income breakdown by category
-
-Expense breakdown by category
-
-Monthly summary line chart
-
-🛠️ Tech Stack
-
-Frontend: React + Vite, Chart.js
-
-Backend: Node.js, Express
-
-Database: MongoDB
-
-State Management: React Hooks
-
-📌 Notes
-
-Always maintain correct amount format when switching between Income and Expense.
-
-Project is designed for local MongoDB setup.
-
+Dashboard
+Login Page

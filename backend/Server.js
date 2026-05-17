@@ -1,106 +1,568 @@
-import mongoose from "mongoose";
 import express from "express";
+import mongoose from "mongoose";
 import cors from "cors";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const app = express();
 const router = express.Router();
+
 const PORT = process.env.PORT || 5000;
+
+/* =========================
+   MIDDLEWARE
+========================= */
 
 app.use(cors());
 app.use(express.json());
 
+/* =========================
+   DATABASE
+========================= */
 
-mongoose.connect("mongodb://localhost:27017/finance-tracking", {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => console.log("MongoDB connected"))
-.catch(err => console.log(err));
+mongoose
+  .connect(process.env.MONGO_URI)
+  .then(() => {
+    console.log("MongoDB Connected");
+  })
+  .catch((err) => {
+    console.log(err);
+  });
 
-const transactionSchema = new mongoose.Schema({
-  title: { type: String, required: true },
-  amount: { type: Number, required: true },
-  category: { type: String, required: true },
-  type: { type: String, enum: ["income", "expense"], required: true }, 
-  date: { type: Date, default: Date.now },
-});
-const Transaction = mongoose.model("Transaction", transactionSchema);
+/* =========================
+   USER SCHEMA
+========================= */
 
+const userSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+    },
 
-router.post("/add", async (req, res) => {
-   try {
-    const { title, amount, date, category, type } = req.body;
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+    },
 
-    const transaction = new Transaction({
-      title,
-      amount: type === "expense" ? -Math.abs(amount) : Math.abs(amount), // subtract for expense
-      date,
-      category,
-      type,
-    });
+    password: {
+      type: String,
+      required: true,
+    },
 
-    const saved = await transaction.save();
-    res.status(201).json(saved);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    role: {
+      type: String,
+      enum: ["Admin", "Member"],
+      default: "Member",
+    },
+  },
+  {
+    timestamps: true,
   }
-});
+);
 
-router.get("/", async (req, res) => {
-  try {
-    const txs = await Transaction.find().sort({ date: -1 });
-    return res.json(txs);
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: "Server error" });
+const User = mongoose.model("User", userSchema);
+
+/* =========================
+   PROJECT SCHEMA
+========================= */
+
+const projectSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+    },
+
+    description: {
+      type: String,
+    },
+
+    admin: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+
+    members: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+  },
+  {
+    timestamps: true,
   }
-});
+);
 
-router.get("/:id", async (req, res) => {
-  try {
-    const tx = await Transaction.findById(req.params.id);
-    if (!tx) return res.status(404).json({ error: "Not found" });
-    return res.json(tx);
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: "Server error" });
+const Project = mongoose.model("Project", projectSchema);
+
+/* =========================
+   TASK SCHEMA
+========================= */
+
+const taskSchema = new mongoose.Schema(
+  {
+    title: {
+      type: String,
+      required: true,
+    },
+
+    description: {
+      type: String,
+    },
+
+    priority: {
+      type: String,
+      enum: ["Low", "Medium", "High"],
+      default: "Medium",
+    },
+
+    status: {
+      type: String,
+      enum: ["To Do", "In Progress", "Done"],
+      default: "To Do",
+    },
+
+    dueDate: {
+      type: Date,
+    },
+
+    assignedTo: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+
+    project: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Project",
+    },
+  },
+  {
+    timestamps: true,
   }
-});
+);
 
-router.put("/:id", async (req, res) => {
+const Task = mongoose.model("Task", taskSchema);
+
+/* =========================
+   AUTH MIDDLEWARE
+========================= */
+
+const authMiddleware = (req, res, next) => {
   try {
-    const { title, amount, date, category, type } = req.body;
+    const token = req.headers.authorization;
 
-    const tx = await Transaction.findByIdAndUpdate(
-      req.params.id,
-      { title, amount, date, category, type }, // ✅ include type
-      { new: true, runValidators: true }
+    if (!token) {
+      return res.status(401).json({
+        message: "No token provided",
+      });
+    }
+
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET
     );
 
-    if (!tx) return res.status(404).json({ error: "Not found" });
+    req.user = decoded;
 
-    return res.json(tx);
+    next();
   } catch (err) {
-    console.error("Error updating transaction:", err);
-    return res.status(500).json({ error: "Server error" });
+    return res.status(401).json({
+      message: "Invalid token",
+    });
   }
-});
+};
 
-router.delete("/:id/delete", async (req, res) => {
+/* =========================
+   AUTH ROUTES
+========================= */
+
+router.post("/auth/register", async (req, res) => {
   try {
-    const tx = await Transaction.findByIdAndDelete(req.params.id);
-    if (!tx) return res.status(404).json({ error: "Not found" });
-    return res.json({ message: "Deleted" });
+    const {
+      name,
+      email,
+      password,
+      role,
+    } = req.body;
+
+    const existingUser = await User.findOne({
+      email,
+    });
+
+    if (existingUser) {
+      return res.status(400).json({
+        message: "User already exists",
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(
+      password,
+      10
+    );
+
+    const user = await User.create({
+      name,
+      email,
+      password: hashedPassword,
+      role: role || "Member",
+    });
+
+    res.status(201).json({
+      message: "Registration successful",
+      user,
+    });
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: "Server error" });
+    res.status(500).json({
+      message: err.message,
+    });
   }
 });
 
+router.post("/auth/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
 
-app.use("/api/transactions", router);
+    const user = await User.findOne({
+      email,
+    });
 
+    if (!user) {
+      return res.status(400).json({
+        message: "Invalid credentials",
+      });
+    }
+
+    const isMatch = await bcrypt.compare(
+      password,
+      user.password
+    );
+
+    if (!isMatch) {
+      return res.status(400).json({
+        message: "Invalid credentials",
+      });
+    }
+
+    const token = jwt.sign(
+      {
+        id: user._id,
+        role: user.role,
+      },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: "7d",
+      }
+    );
+
+    res.json({
+      token,
+      user,
+    });
+  } catch (err) {
+    res.status(500).json({
+      message: err.message,
+    });
+  }
+});
+
+/* =========================
+   USERS ROUTE
+========================= */
+
+router.get(
+  "/users",
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const users = await User.find().select(
+        "-password"
+      );
+
+      res.json(users);
+    } catch (err) {
+      res.status(500).json({
+        message: err.message,
+      });
+    }
+  }
+);
+
+/* =========================
+   PROJECT ROUTES
+========================= */
+
+router.post(
+  "/projects",
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const {
+        name,
+        description,
+        members,
+      } = req.body;
+
+      const uniqueMembers = [
+        req.user.id,
+        ...(members || []),
+      ];
+
+      const project = await Project.create({
+        name,
+        description,
+        admin: req.user.id,
+        members: [...new Set(uniqueMembers)],
+      });
+
+      const populatedProject =
+        await Project.findById(project._id)
+          .populate("admin", "name email")
+          .populate(
+            "members",
+            "name email"
+          );
+
+      res.status(201).json(populatedProject);
+    } catch (err) {
+      res.status(500).json({
+        message: err.message,
+      });
+    }
+  }
+);
+
+router.get(
+  "/projects",
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const projects = await Project.find({
+        members: req.user.id,
+      })
+        .populate("admin", "name email")
+        .populate("members", "name email");
+
+      res.json(projects);
+    } catch (err) {
+      res.status(500).json({
+        message: err.message,
+      });
+    }
+  }
+);
+/* =========================
+   TEAM ROUTE
+========================= */
+router.get("/team", authMiddleware, async (req, res) => {
+  try {
+    // Only Admin can access
+    if (req.user.role !== "Admin") {
+      return res.status(403).json({
+        message: "Access denied",
+      });
+    }
+
+    const users = await User.find()
+      .select("-password")
+      .lean();
+
+    const tasks = await Task.find()
+      .populate("project", "name")
+      .lean();
+
+    const teamData = users.map((user) => {
+      const userTasks = tasks.filter(
+        (t) =>
+          t.assignedTo &&
+          t.assignedTo.toString() === user._id.toString()
+      );
+
+      return {
+        ...user,
+        tasks: userTasks,
+      };
+    });
+
+    res.json(teamData);
+  } catch (err) {
+    res.status(500).json({
+      message: err.message,
+    });
+  }
+});
+/* =========================
+   TASK ROUTES
+========================= */
+
+router.post(
+  "/tasks",
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const taskData = {
+        ...req.body,
+      };
+
+      if (!taskData.assignedTo) {
+        delete taskData.assignedTo;
+      }
+
+      if (!taskData.project) {
+        delete taskData.project;
+      }
+
+      const task = await Task.create(taskData);
+
+      const populatedTask = await Task.findById(
+        task._id
+      )
+        .populate("assignedTo", "name email")
+        .populate("project", "name");
+
+      res.status(201).json(populatedTask);
+    } catch (err) {
+      res.status(500).json({
+        message: err.message,
+      });
+    }
+  }
+);
+
+router.get(
+  "/tasks",
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const tasks = await Task.find()
+        .populate("assignedTo", "name email")
+        .populate("project", "name");
+
+      res.json(tasks);
+    } catch (err) {
+      res.status(500).json({
+        message: err.message,
+      });
+    }
+  }
+);
+
+router.put(
+  "/tasks/:id",
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const updatedTask =
+        await Task.findByIdAndUpdate(
+          req.params.id,
+          req.body,
+          {
+            new: true,
+          }
+        )
+          .populate(
+            "assignedTo",
+            "name email"
+          )
+          .populate("project", "name");
+
+      res.json(updatedTask);
+    } catch (err) {
+      res.status(500).json({
+        message: err.message,
+      });
+    }
+  }
+);
+
+router.delete(
+  "/tasks/:id",
+  authMiddleware,
+  async (req, res) => {
+    try {
+      await Task.findByIdAndDelete(
+        req.params.id
+      );
+
+      res.json({
+        message: "Task deleted successfully",
+      });
+    } catch (err) {
+      res.status(500).json({
+        message: err.message,
+      });
+    }
+  }
+);
+
+/* =========================
+   DASHBOARD ROUTE
+========================= */
+
+router.get(
+  "/dashboard",
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const totalTasks =
+        await Task.countDocuments();
+
+      const completedTasks =
+        await Task.countDocuments({
+          status: "Done",
+        });
+
+      const overdueTasks =
+        await Task.countDocuments({
+          dueDate: {
+            $lt: new Date(),
+          },
+
+          status: {
+            $ne: "Done",
+          },
+        });
+
+      const totalProjects =
+        await Project.countDocuments();
+
+      res.json({
+        totalTasks,
+        completedTasks,
+        overdueTasks,
+        totalProjects,
+      });
+    } catch (err) {
+      res.status(500).json({
+        message: err.message,
+      });
+    }
+  }
+);
+
+/* =========================
+   BASE ROUTE
+========================= */
+
+app.get("/", (req, res) => {
+  res.send("Team Task Manager API Running");
+});
+
+/* =========================
+   API ROUTES
+========================= */
+
+app.use("/api", router);
+
+/* =========================
+   SERVER
+========================= */
 
 app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
